@@ -28,9 +28,9 @@ DISCORD_API = "https://discord.com/api/v10"
 def _page(title, body):
     return f"""<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>{html.escape(title)}</title><style>
-:root{{--bg:#090d18;--panel:#111a2c;--line:#263653;--text:#edf3ff;--muted:#a9b8d0;--accent:#8b7cff;}}
-*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 0%,#20264b 0,#090d18 48%);font:16px/1.55 system-ui;color:var(--text)}}
-main{{width:min(100%,540px);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:30px;box-shadow:0 22px 70px #0008}}.logo{{font-size:12px;letter-spacing:.22em;color:#b5aaff;font-weight:800}}h1{{font-size:28px;margin:12px 0}}p{{color:var(--muted)}}.server{{padding:14px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:#0c1424}}label{{display:block;margin:14px 0 6px;font-weight:650}}input{{width:100%;padding:13px;border-radius:10px;border:1px solid #344866;background:#0a1220;color:white;font:inherit}}button,.cta{{display:block;width:100%;margin-top:18px;text-align:center;padding:14px;border:0;border-radius:11px;background:linear-gradient(110deg,#7769ed,#4d9cff);color:white;font-weight:800;font-size:16px;text-decoration:none;cursor:pointer}}small{{color:#8294b2}}.ok{{color:#8ce5b0}}.warn{{color:#ffd28a}}
+ :root{{--bg:#090d18;--panel:#111a2c;--line:#263653;--text:#edf3ff;--muted:#c1cce0;--accent:#8b7cff;}}
+*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 0%,#20264b 0,#090d18 48%);font:18px/1.65 system-ui;color:var(--text)}}
+main{{width:min(100%,680px);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:34px;box-shadow:0 22px 70px #0008}}.logo{{font-size:14px;letter-spacing:.16em;color:#b5aaff;font-weight:800}}h1{{font-size:34px;line-height:1.2;margin:14px 0}}p{{color:var(--muted);margin:10px 0}}.section{{padding:16px 18px;border:1px solid var(--line);border-radius:14px;margin:14px 0;background:#0c1424}}.section h2{{font-size:19px;margin:0 0 5px}}.server{{padding:14px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:#0c1424}}label{{display:block;margin:14px 0 6px;font-weight:650}}input{{width:100%;padding:13px;border-radius:10px;border:1px solid #344866;background:#0a1220;color:white;font:inherit}}button,.cta{{display:block;width:100%;margin-top:18px;text-align:center;padding:14px;border:0;border-radius:11px;background:linear-gradient(110deg,#7769ed,#4d9cff);color:white;font-weight:800;font-size:18px;text-decoration:none;cursor:pointer}}small{{font-size:14px;color:#a9b8d0}}.ok{{color:#8ce5b0}}.warn{{color:#ffd28a}}.brand{{margin-top:20px;color:#b5aaff;font-weight:750;letter-spacing:.06em}}
 </style><main><div class='logo'>JARVIS • VERIFY</div>{body}<p><small>Official Discord authorization. JARVIS never asks for your Discord password or security code.</small></p></main></html>"""
 
 
@@ -189,7 +189,25 @@ class VerifyPortal:
         self.states[state] = {"key": key, "created": time.time(), "answer": str(a+b)}
         name = html.escape(target.get("name", "Discord community"))
         recovery_option = "<label style='display:flex;gap:10px;align-items:flex-start'><input type='checkbox' name='recovery' value='yes' style='width:auto;margin-top:5px'><span>Optional: save encrypted recovery access so JARVIS can restore you if this server is lost. Revoke access in Discord Authorized Apps.</span></label>" if self.recovery_cipher else "<p class='warn'>Member recovery is unavailable.</p>"
-        body = f"<h1>Verify to join {name}</h1><p>Verification helps keep bots out and protects this community.</p><div class='server'><b>{name}</b><br><small>You'll join this server after approving on Discord.</small></div><p><b>Privacy:</b> We don't log or save your IP. JARVIS never asks for your password or MFA code.</p><form method='post' action='/verify/{html.escape(key)}/start'><input type='hidden' name='state' value='{state}'><label for='captcha'>Quick check: {a} + {b} = ?</label><input id='captcha' name='captcha' inputmode='numeric' autocomplete='off' required>{recovery_option}<div style='position:absolute;left:-9999px' aria-hidden='true'><label>Leave this blank<input name='website' tabindex='-1' autocomplete='off'></label></div><button type='submit'>Verify</button></form>"
+        body = (
+            f"<h1>🛡️ Verify to Unlock the Community</h1>"
+            "<p>We verify members to help keep bots and raid accounts out and protect the private community. "
+            "Complete Discord's official authorization to receive access.</p>"
+            f"<div class='server'><b>Joining: {name}</b></div>"
+            "<section class='section'><h2>Why verify?</h2><p>Only verified members can see the community channels. "
+            "This helps keep the server safe for everyone.</p></section>"
+            "<section class='section'><h2>Privacy</h2><p>We do not log or save your IP address. JARVIS never asks for your Discord password, "
+            "MFA code, or session token.</p></section>"
+            "<section class='section'><h2>How it works</h2><p>Click <b>Verify</b>, check the server name on Discord, "
+            "and approve if you want to join.</p></section>"
+            f"<form method='post' action='/verify/{html.escape(key)}/start'><input type='hidden' name='state' value='{state}'>"
+            f"<label for='captcha'>Quick check: {a} + {b} = ?</label>"
+            f"<input id='captcha' name='captcha' inputmode='numeric' autocomplete='off' required>{recovery_option}"
+            "<div style='position:absolute;left:-9999px' aria-hidden='true'><label>Leave this blank"
+            "<input name='website' tabindex='-1' autocomplete='off'></label></div>"
+            "<button type='submit'>Verify</button></form>"
+            "<p class='brand'>JARVIS • Community Security</p>"
+        )
         return web.Response(text=_page("JARVIS Verify", body), content_type="text/html")
 
     async def begin(self, request):
