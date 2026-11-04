@@ -1921,12 +1921,16 @@ def create_bot(cfg):
                 pass
             return
         if isinstance(error, commands.MissingRequiredArgument):
-            message = await ctx.reply(f"I need `{error.param.name}` to run that. Use `{ctx.prefix}help` to see the syntax.", mention_author=False)
+            command = ctx.command
+            expected = f"{ctx.prefix}{command.qualified_name}{(' ' + command.signature) if command and command.signature else ''}" if command else f"{ctx.prefix}help"
+            message = await ctx.reply(f"I need `{error.param.name}` to run that. Correct format: `{expected}`", mention_author=False)
             try: await ctx.message.add_reaction("❌")
             except discord.HTTPException: pass
             return message
         if isinstance(error, commands.BadArgument):
-            message = await ctx.reply(f"I couldn't understand that argument. Use `{ctx.prefix}help` to see the syntax.", mention_author=False)
+            command = ctx.command
+            expected = f"{ctx.prefix}{command.qualified_name}{(' ' + command.signature) if command and command.signature else ''}" if command else f"{ctx.prefix}help"
+            message = await ctx.reply(f"I couldn't understand that argument. Correct format: `{expected}`", mention_author=False)
             try: await ctx.message.add_reaction("❌")
             except discord.HTTPException: pass
             return message
