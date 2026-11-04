@@ -131,7 +131,7 @@ def command_pages(bot, viewer=None, cfg=None, namespace=None):
 
 
 def command_list_embeds(bot, prefixes, viewer, cfg):
-    """Show only the command groups the current user is allowed to use."""
+    """Show a compact, single-message command list for the viewer's role."""
     lanes = (
         ("member", "MEMBER COMMANDS", "Public"),
         ("staff", "STAFF & ADMIN COMMANDS", "Staff and Admin"),
@@ -144,42 +144,31 @@ def command_list_embeds(bot, prefixes, viewer, cfg):
         visible_lanes = {"member", "staff"}
     else:
         visible_lanes = {"member"}
-    embeds = []
+    embed = discord.Embed(
+        title="JARVIS Commands",
+        description="Commands you can use, grouped by role. Syntax appears only when a command needs correction.",
+        colour=0x7565D9,
+    )
     for namespace, title, access_label in lanes:
         if namespace not in visible_lanes:
             continue
         grouped = command_pages(bot, viewer=viewer, cfg=cfg, namespace=namespace)
-        embed_title = f"JARVIS Command List · {title}"
-        embed_description = "Commands grouped by category. Syntax is shown only when a command needs correction."
-        def new_embed(continued=False):
-            result = discord.Embed(title=embed_title,
-                description=embed_description if not continued else "Command list continued.", colour=0x7565D9)
-            result.set_footer(text=f"Access: {access_label}")
-            return result
-        embed = new_embed()
-        used = len(embed_title) + len(embed_description) + len(access_label)
-        fields = 0
+        category_lines = []
         for category, entries in grouped.items():
-            lines = [f"**{name}** — {description}" if description else f"**{name}**" for name, description, _access in entries]
-            chunks, current = [], ""
-            for line in lines:
-                if current and len(current) + len(line) + 1 > 950:
-                    chunks.append(current); current = ""
-                current = (current + "\n" if current else "") + line
-            if current:
-                chunks.append(current)
-            for index, chunk in enumerate(chunks):
-                field_name = category if index == 0 else f"{category} · more"
-                if fields >= 25 or used + len(field_name) + len(chunk) > 5400:
-                    embeds.append(embed)
-                    embed = new_embed(continued=True)
-                    used = len(embed_title) + len("Command list continued.") + len(access_label)
-                    fields = 0
-                embed.add_field(name=field_name, value=chunk, inline=True)
-                used += len(field_name) + len(chunk)
-                fields += 1
-        if fields:
-            embeds.append(embed)
-    return embeds
+            # Keep the help readable on mobile by listing canonical names only.
+            names = " · ".join(f"`{name.split(' · ', 1)[0]}`" for name, _description, _access in entries)
+            category_lines.append(f"**{category}**\n{names}")
+        chunks, current = [], ""
+        for line in category_lines:
+            if current and len(current) + len(line) + 2 > 950:
+                chunks.append(current); current = ""
+            current = (current + "\n\n" if current else "") + line
+        if current:
+            chunks.append(current)
+        for index, chunk in enumerate(chunks):
+            field_name = title if index == 0 else f"{title} · more"
+            embed.add_field(name=field_name, value=chunk, inline=True)
+    embed.set_footer(text="Use the $ prefix. No numbering or dropdowns.")
+    return [embed]
 
 
