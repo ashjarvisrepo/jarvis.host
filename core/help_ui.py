@@ -40,7 +40,7 @@ PREFIX_DESCRIPTIONS = {
     "serversnapshot": "Save, list, or additively restore a structure snapshot; optionally restore from another server ID. Example: $serversnapshot restore launch 123456789012345678.",
     "recoverypanel": "Post an opt-in member rejoin panel using Discord OAuth consent. Example: $recoverypanel #verify-here main.",
     "pull": "Quick: $pull start <new_server_id> <role_id> pulls opted-in members from configured main. Controls: $pull status|pause|resume|stop. Advanced: $pull plan <source_id> <destination_key> [member_id]; $pull one <source_id> <destination_key> <member_id>; $pull settings. Requires member recovery opt-in.",
-    "dashboard": "Open the private local JARVIS Pull dashboard. Example: $dashboard (DMs a link to the computer running this bot).",
+    "dashboard": "Open the private JARVIS Pull dashboard. On Railway, sign in with an allowed Discord owner or co-owner account. Example: $dashboard.",
     "updates": "Opt into or out of community updates. Example: $updates join.",
     "serverinfo": "Show public information about this server. Example: $serverinfo.",
     "userinfo": "Show public information about a member. Example: $userinfo @member.",
@@ -92,18 +92,6 @@ def _category(name):
     return "General"
 
 
-def _prefix_syntax(command, prefix):
-    return f"{prefix}{command.name}" + (f" {command.signature}" if command.signature else "")
-
-
-def _slash_syntax(command):
-    params = []
-    for parameter in command.parameters:
-        label = parameter.name
-        params.append(f"<{label}>" if parameter.required else f"[{label}]")
-    return "/" + command.name + (" " + " ".join(params) if params else "")
-
-
 def _namespace_access(access, namespace, viewer, cfg):
     from core.permissions import is_owner, is_admin, is_staff
     if namespace == "owner":
@@ -115,7 +103,7 @@ def _namespace_access(access, namespace, viewer, cfg):
     return access == "Public" or (access == "Staff" and is_staff(viewer, cfg)) or (access == "Admin" and is_admin(viewer, cfg)) or (access == "Owner" and is_owner(viewer, cfg))
 
 
-def command_pages(bot, prefix, viewer=None, cfg=None, namespace=None):
+def command_pages(bot, viewer=None, cfg=None, namespace=None):
     grouped = {category: [] for category in CATEGORIES}
     for command in sorted(bot.commands, key=lambda c: c.name):
         if command.hidden:
@@ -131,17 +119,14 @@ def command_pages(bot, prefix, viewer=None, cfg=None, namespace=None):
             allowed = True
         if not allowed:
             continue
-        if isinstance(prefix, dict):
-            lane = namespace if command.name == "help" and namespace else {"Owner": "owner", "Admin": "staff", "Staff": "staff", "Public": "member"}.get(access, "member")
-            command_prefix = prefix[lane]
-        else:
-            command_prefix = prefix
-        syntax = _prefix_syntax(command, command_prefix)
-        aliases = f" (aliases: {', '.join(command_prefix + alias for alias in command.aliases)})" if command.aliases else ""
-        desc = (command.help or command.short_doc or PREFIX_DESCRIPTIONS.get(command.name) or "No description provided.").replace("\n", " ")
-        if "Example: $" in desc:
-            desc = desc.replace("Example: $", f"Example: {command_prefix}")
-        grouped[_category(command.name)].append((syntax + aliases, desc, access))
+        desc = (PREFIX_DESCRIPTIONS.get(command.name) or command.help or command.short_doc or "No description provided.").replace("\n", " ")
+        desc = desc.split("Example:", 1)[0].strip().rstrip(". ")
+        if command.name == "pull":
+            desc = "Start and control recovery pulls for members who opted in."
+        elif command.name == "serversnapshot":
+            desc = "Create, list, and restore server structure snapshots."
+        name = f"{command.name}{(' · ' + ', '.join(command.aliases)) if command.aliases else ''}"
+        grouped[_category(command.name)].append((name, desc, access))
     return {name: entries for name, entries in grouped.items() if entries}
 
 
@@ -163,18 +148,24 @@ def command_list_embeds(bot, prefixes, viewer, cfg):
     for namespace, title, access_label in lanes:
         if namespace not in visible_lanes:
             continue
-        grouped = command_pages(bot, prefixes, viewer=viewer, cfg=cfg, namespace=namespace)
-        lines = [
-            f"`{syntax}` · **{access}**"
-            for entries in grouped.values()
-            for syntax, _description, access in entries
-        ]
+        grouped = command_pages(bot, viewer=viewer, cfg=cfg, namespace=namespace)
         embed = discord.Embed(
-            title=f"JARVIS Command List · {title} · {prefixes[namespace]}",
-            description="\n".join(lines) or "No commands in this lane.",
+            title=f"JARVIS Command List · {title}",
+            description="Commands you can use, grouped by category. Syntax appears only when a command needs correction.",
             colour=0x7565D9,
         )
-        embed.set_footer(text=f"Access: {access_label} · Configure role IDs in config/settings.yaml")
+        for category, entries in grouped.items():
+            lines = [f"**{name}** — {description}" if description else f"**{name}**" for name, description, _access in entries]
+            chunks, current = [], ""
+            for line in lines:
+                if current and len(current) + len(line) + 1 > 950:
+                    chunks.append(current); current = ""
+                current = (current + "\n" if current else "") + line
+            if current:
+                chunks.append(current)
+            for index, chunk in enumerate(chunks):
+                embed.add_field(name=category if index == 0 else f"{category} · more", value=chunk, inline=True)
+        embed.set_footer(text=f"Access: {access_label}")
         embeds.append(embed)
     return embeds
 
