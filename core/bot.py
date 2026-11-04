@@ -191,6 +191,7 @@ def create_bot(cfg):
               id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, guild_id INTEGER NOT NULL,
               invite_code TEXT, campaign TEXT, created_at TEXT NOT NULL)""")
             await db.conn.commit()
+        await bot.verify_portal.load_extra_targets()
         await resume_explicit_verifications()
         if not getattr(bot, "_local_dashboard_started", False):
             try:
@@ -1168,8 +1169,17 @@ def create_bot(cfg):
 
     @bot.command(name="dashboard", aliases=["dash"])
     async def prefix_dashboard(ctx):
-        if not is_owner(ctx.author, cfg):
+        allowed_coowners = {int(value) for value in cfg["discord"].get("co_owner_ids", []) if str(value).isdigit()}
+        if not is_owner(ctx.author, cfg) and ctx.author.id not in allowed_coowners:
             return await ctx.reply("Bot owner permission required.", mention_author=False)
+        if bot.local_dashboard.public_mode and bot.local_dashboard.public_base_url:
+            dashboard_link = bot.local_dashboard.public_base_url + "/dashboard"
+            try:
+                await ctx.author.send(f"Your private JARVIS Pull dashboard: {dashboard_link}\nSign in with an allowed Discord account. Keep the link private.")
+                await ctx.reply("I sent the private Pull dashboard link to your DMs.", mention_author=False)
+            except discord.Forbidden:
+                await ctx.reply("I couldn't DM you. Enable server DMs, then run `$dashboard` again.", mention_author=False)
+            return
         if not bot.local_dashboard.runner:
             return await ctx.reply("The local dashboard is disabled or failed to start. Check the bot log.", mention_author=False)
         try:
@@ -1199,19 +1209,19 @@ def create_bot(cfg):
         control = {"stop": False, "pause_event": asyncio.Event()}; control["pause_event"].set()
         bot.member_restore_control = control
         job_id = secrets.token_hex(4)
-        bot.member_restore_status = {"job_id": job_id, "state": "queued", "detail": "Preparing consented member queue."}
+        bot.member_restore_status = {"job_id": job_id, "state": "queued", "detail": "Preparing consented member queue.", "source_guild_id": int(source_id), "destination_guild_id": int(destination.id)}
         async def run_pull():
             try:
                 async def progress(counters):
                     state = "stopping" if control["stop"] else "paused" if not control["pause_event"].is_set() else "running"
-                    bot.member_restore_status = {"job_id": job_id, "state": state, "detail": f"{counters['processed']}/{counters['eligible']} processed · {counters['joined']} joined · {counters['already_or_queued']} already present · {counters['revoked_or_invalid']} revoked/invalid · {counters['failed']} failed"}
+                    bot.member_restore_status = {"job_id": job_id, "state": state, "detail": f"{counters['processed']}/{counters['eligible']} processed · {counters['joined']} joined · {counters['already_or_queued']} already present · {counters['revoked_or_invalid']} revoked/invalid · {counters['failed']} failed", "source_guild_id": int(source_id), "destination_guild_id": int(destination.id)}
                 result = await bot.verify_portal.restore_members(source_id, destination_key, member_id=member_id, control=control, delay_range=(low, high), progress_callback=progress, max_members=limit)
                 state = "stopped" if result["stopped"] else "complete"
-                bot.member_restore_status = {"job_id": job_id, "state": state, "detail": f"{result['processed']}/{result['eligible']} processed · {result['joined']} joined · {result['already_or_queued']} already present · {result['revoked_or_invalid']} revoked/invalid · {result['failed']} failed"}
+                bot.member_restore_status = {"job_id": job_id, "state": state, "detail": f"{result['processed']}/{result['eligible']} processed · {result['joined']} joined · {result['already_or_queued']} already present · {result['revoked_or_invalid']} revoked/invalid · {result['failed']} failed", "source_guild_id": int(source_id), "destination_guild_id": int(destination.id)}
                 await db.audit(actor_id, "member_pull_completed", f"job={job_id}; source={source_id}; destination={destination.id}; joined={result['joined']}; failed={result['failed']}; stopped={result['stopped']}")
             except Exception as exc:
                 log.exception("Member pull job failed")
-                bot.member_restore_status = {"job_id": job_id, "state": "failed", "detail": str(exc)[:300]}
+                bot.member_restore_status = {"job_id": job_id, "state": "failed", "detail": str(exc)[:300], "source_guild_id": int(source_id), "destination_guild_id": int(destination.id)}
         bot.member_restore_task = asyncio.create_task(run_pull())
         return {"job_id": job_id, "limit": limit, "delay_min": low, "delay_max": high}
 
