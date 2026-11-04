@@ -28,10 +28,10 @@ DISCORD_API = "https://discord.com/api/v10"
 def _page(title, body):
     return f"""<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>{html.escape(title)}</title><style>
- :root{{--bg:#090d18;--panel:#111a2c;--line:#263653;--text:#edf3ff;--muted:#c1cce0;--accent:#8b7cff;}}
-*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 0%,#20264b 0,#090d18 48%);font:18px/1.65 system-ui;color:var(--text)}}
-main{{width:min(100%,680px);background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:34px;box-shadow:0 22px 70px #0008}}.logo{{font-size:14px;letter-spacing:.16em;color:#b5aaff;font-weight:800}}h1{{font-size:34px;line-height:1.2;margin:14px 0}}p{{color:var(--muted);margin:10px 0}}.section{{padding:16px 18px;border:1px solid var(--line);border-radius:14px;margin:14px 0;background:#0c1424}}.section h2{{font-size:19px;margin:0 0 5px}}.server{{padding:14px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:#0c1424}}label{{display:block;margin:14px 0 6px;font-weight:650}}input{{width:100%;padding:13px;border-radius:10px;border:1px solid #344866;background:#0a1220;color:white;font:inherit}}button,.cta{{display:block;width:100%;margin-top:18px;text-align:center;padding:14px;border:0;border-radius:11px;background:linear-gradient(110deg,#7769ed,#4d9cff);color:white;font-weight:800;font-size:18px;text-decoration:none;cursor:pointer}}small{{font-size:14px;color:#a9b8d0}}.ok{{color:#8ce5b0}}.warn{{color:#ffd28a}}.brand{{margin-top:20px;color:#b5aaff;font-weight:750;letter-spacing:.06em}}
-</style><main><div class='logo'>JARVIS • VERIFY</div>{body}<p><small>Official Discord authorization. JARVIS never asks for your Discord password or security code.</small></p></main></html>"""
+:root{{--bg:#101114;--panel:#191a1f;--line:#2a2b31;--text:#f4f4f5;--muted:#b6b8c0;--accent:#6c63ff;}}
+*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);font:16px/1.5 system-ui,Segoe UI,sans-serif;color:var(--text)}}
+main{{width:min(100%,560px);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;box-shadow:0 12px 36px #0005}}.logo{{font-size:12px;letter-spacing:.12em;color:#aaa4ff;font-weight:750}}h1{{font-size:clamp(24px,5vw,30px);line-height:1.2;margin:12px 0 8px}}p{{color:var(--muted);margin:9px 0}}.server{{padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin:16px 0;background:#141519}}.server p{{margin:3px 0 0;font-size:14px}}.privacy{{font-size:14px}}label{{display:block;margin:14px 0 6px;font-weight:650}}input[type=text]{{width:100%;padding:11px;border-radius:8px;border:1px solid #3a3b43;background:#101114;color:white;font:inherit}}.check{{display:flex;align-items:flex-start;gap:9px;margin:12px 0;color:var(--muted);font-size:13px;font-weight:500}}.check input{{width:auto;margin:4px 0 0}}.check small{{display:block;font-size:12px;color:#aeb0b8}}button,.cta{{display:block;width:100%;margin-top:14px;text-align:center;padding:12px;border:0;border-radius:9px;background:var(--accent);color:white;font-weight:750;font-size:16px;text-decoration:none;cursor:pointer}}small{{font-size:12px;color:#b2b4bc}}.warn{{color:#ffd28a}}.brand{{margin-top:16px;color:#aaa4ff;font-size:12px;font-weight:700;letter-spacing:.04em}}
+</style><main><div class='logo'>JARVIS • VERIFY</div>{body}<div class='brand'>JARVIS • Community Security</div></main></html>"""
 
 
 class VerifyPortal:
@@ -76,6 +76,8 @@ class VerifyPortal:
         app.router.add_get("/api/pulls/status", self.api_pull_status)
         app.router.add_post("/api/pulls/control", self.api_pull_control)
         app.router.add_get("/health", lambda _: web.json_response({"service": "JARVIS VERIFY", "status": "online"}))
+        if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT")) and self.bot.local_dashboard.dcfg.get("enabled", True):
+            self.bot.local_dashboard.register_public_routes(app)
         # Railway exposes one HTTP port per service. Serve the SellAuth callback
         # on that same listener instead of opening an unreachable second port.
         railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT"))
@@ -188,25 +190,22 @@ class VerifyPortal:
         state = secrets.token_urlsafe(32)
         self.states[state] = {"key": key, "created": time.time(), "answer": str(a+b)}
         name = html.escape(target.get("name", "Discord community"))
-        recovery_option = "<label style='display:flex;gap:10px;align-items:flex-start'><input type='checkbox' name='recovery' value='yes' style='width:auto;margin-top:5px'><span>Optional: save encrypted recovery access so JARVIS can restore you if this server is lost. Revoke access in Discord Authorized Apps.</span></label>" if self.recovery_cipher else "<p class='warn'>Member recovery is unavailable.</p>"
+        recovery_option = (
+            "<label class='check'><input type='checkbox' name='recovery' value='yes'><span><b>Optional recovery</b>"
+            "<small>Save encrypted access to rejoin if this server is lost. Revoke it in Discord Authorized Apps.</small></span></label>"
+            if self.recovery_cipher else ""
+        )
         body = (
-            f"<h1>🛡️ Verify to Unlock the Community</h1>"
-            "<p>We verify members to help keep bots and raid accounts out and protect the private community. "
-            "Complete Discord's official authorization to receive access.</p>"
-            f"<div class='server'><b>Joining: {name}</b></div>"
-            "<section class='section'><h2>Why verify?</h2><p>Only verified members can see the community channels. "
-            "This helps keep the server safe for everyone.</p></section>"
-            "<section class='section'><h2>Privacy</h2><p>We do not log or save your IP address. JARVIS never asks for your Discord password, "
-            "MFA code, or session token.</p></section>"
-            "<section class='section'><h2>How it works</h2><p>Click <b>Verify</b>, check the server name on Discord, "
-            "and approve if you want to join.</p></section>"
+            "<h1>🛡️ Verify to Unlock the Community</h1>"
+            "<p>Verify with Discord to unlock this community and help keep bots and raid accounts out.</p>"
+            f"<div class='server'><b>{name}</b><p>Verified members can access the community channels.</p></div>"
+            "<p class='privacy'><b>Your privacy:</b> We do not log your IP. JARVIS never asks for your password, MFA code, or token.</p>"
+            "<p class='privacy'><b>Next:</b> Click Verify, confirm the server name on Discord, then approve if you want to join.</p>"
             f"<form method='post' action='/verify/{html.escape(key)}/start'><input type='hidden' name='state' value='{state}'>"
             f"<label for='captcha'>Quick check: {a} + {b} = ?</label>"
-            f"<input id='captcha' name='captcha' inputmode='numeric' autocomplete='off' required>{recovery_option}"
-            "<div style='position:absolute;left:-9999px' aria-hidden='true'><label>Leave this blank"
-            "<input name='website' tabindex='-1' autocomplete='off'></label></div>"
+            f"<input type='text' id='captcha' name='captcha' inputmode='numeric' autocomplete='off' required>{recovery_option}"
+            "<div style='position:absolute;left:-9999px' aria-hidden='true'><label>Leave this blank<input name='website' tabindex='-1' autocomplete='off'></label></div>"
             "<button type='submit'>Verify</button></form>"
-            "<p class='brand'>JARVIS • Community Security</p>"
         )
         return web.Response(text=_page("JARVIS Verify", body), content_type="text/html")
 
