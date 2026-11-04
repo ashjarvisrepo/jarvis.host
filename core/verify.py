@@ -8,9 +8,11 @@ import asyncio
 import base64
 import html
 import hmac
+import json
 import logging
 import os
 import random
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -25,19 +27,26 @@ log = logging.getLogger("jarvis.verify")
 DISCORD_API = "https://discord.com/api/v10"
 
 
-def _page(title, body):
+def _page(title, body, theme=None):
+    theme = theme or {}
+    accent = str(theme.get("color", "#6c63ff"))
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+        accent = "#6c63ff"
+    brand_label = html.escape(str(theme.get("label", "JARVIS • Community Security"))[:40])
     return f"""<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>{html.escape(title)}</title><style>
-:root{{--bg:#101114;--panel:#191a1f;--line:#2a2b31;--text:#f4f4f5;--muted:#b6b8c0;--accent:#6c63ff;}}
+:root{{--bg:#101114;--panel:#191a1f;--line:#2a2b31;--text:#f4f4f5;--muted:#b6b8c0;--accent:{accent};}}
 *{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);font:16px/1.5 system-ui,Segoe UI,sans-serif;color:var(--text)}}
-main{{width:min(100%,560px);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;box-shadow:0 12px 36px #0005}}.logo{{font-size:12px;letter-spacing:.12em;color:#aaa4ff;font-weight:750}}h1{{font-size:clamp(24px,5vw,30px);line-height:1.2;margin:12px 0 8px}}p{{color:var(--muted);margin:9px 0}}.server{{padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin:16px 0;background:#141519}}.server p{{margin:3px 0 0;font-size:14px}}.privacy{{font-size:14px}}label{{display:block;margin:14px 0 6px;font-weight:650}}input[type=text]{{width:100%;padding:11px;border-radius:8px;border:1px solid #3a3b43;background:#101114;color:white;font:inherit}}.check{{display:flex;align-items:flex-start;gap:9px;margin:12px 0;color:var(--muted);font-size:13px;font-weight:500}}.check input{{width:auto;margin:4px 0 0}}.check small{{display:block;font-size:12px;color:#aeb0b8}}button,.cta{{display:block;width:100%;margin-top:14px;text-align:center;padding:12px;border:0;border-radius:9px;background:var(--accent);color:white;font-weight:750;font-size:16px;text-decoration:none;cursor:pointer}}small{{font-size:12px;color:#b2b4bc}}.warn{{color:#ffd28a}}.brand{{margin-top:16px;color:#aaa4ff;font-size:12px;font-weight:700;letter-spacing:.04em}}
-</style><main><div class='logo'>JARVIS • VERIFY</div>{body}<div class='brand'>JARVIS • Community Security</div></main></html>"""
+main{{width:min(100%,560px);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px;box-shadow:0 12px 36px #0005;animation:appear .35s ease-out}}.logo{{font-size:12px;letter-spacing:.12em;color:var(--accent);font-weight:750}}h1{{font-size:clamp(24px,5vw,30px);line-height:1.2;margin:12px 0 8px}}p{{color:var(--muted);margin:9px 0}}.server{{padding:12px 14px;border:1px solid var(--line);border-radius:10px;margin:16px 0;background:#141519}}.server p{{margin:3px 0 0;font-size:14px}}.privacy{{font-size:14px}}label{{display:block;margin:14px 0 6px;font-weight:650}}input[type=text]{{width:100%;padding:11px;border-radius:8px;border:1px solid #3a3b43;background:#101114;color:white;font:inherit}}.check{{display:flex;align-items:flex-start;gap:9px;margin:12px 0;color:var(--muted);font-size:13px;font-weight:500}}.check input{{width:auto;margin:4px 0 0}}.check small{{display:block;font-size:12px;color:#aeb0b8}}button,.cta{{display:block;width:100%;margin-top:14px;text-align:center;padding:12px;border:0;border-radius:9px;background:var(--accent);color:white;font-weight:750;font-size:16px;text-decoration:none;cursor:pointer;transition:filter .16s,transform .16s}}button:hover,.cta:hover{{filter:brightness(1.12);transform:translateY(-1px)}}small{{font-size:12px;color:#b2b4bc}}.warn{{color:#ffd28a}}.brand{{margin-top:16px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.04em}}@keyframes appear{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:translateY(0)}}}}@media(prefers-reduced-motion:reduce){{*,*::before,*::after{{animation-duration:.01ms!important;transition-duration:.01ms!important}}}}
+</style><main><div class='logo'>JARVIS • VERIFY</div>{body}<div class='brand'>{brand_label}</div></main></html>"""
 
 
 class VerifyPortal:
     def __init__(self, bot, cfg, db):
         self.bot, self.cfg, self.db = bot, cfg, db
         self.vcfg = cfg.get("verify", {})
+        self.base_targets = list(self.vcfg.get("targets", []))
+        self.extra_targets = []
         self.recovery_cipher = None
         encoded_key = str(self.vcfg.get("recovery_key", "")).strip()
         if encoded_key:
@@ -57,8 +66,28 @@ class VerifyPortal:
     def targets(self):
         return {str(t.get("key")): t for t in self.vcfg.get("targets", []) if t.get("key") and t.get("guild_id")}
 
+    async def load_extra_targets(self):
+        cur = await self.db.conn.execute("SELECT value FROM settings WHERE key='verify_dashboard_targets'")
+        row = await cur.fetchone()
+        try:
+            loaded = json.loads(row["value"]) if row else []
+            self.extra_targets = [x for x in loaded if isinstance(x, dict) and x.get("key") and x.get("guild_id")]
+        except (TypeError, ValueError):
+            log.exception("Saved Pull dashboard destinations are invalid; ignoring them")
+            self.extra_targets = []
+        self.vcfg["targets"] = self.base_targets + self.extra_targets
+
     def public_url(self):
         return self.vcfg.get("public_base_url", "").rstrip("/")
+
+    async def branding(self):
+        cur = await self.db.conn.execute("SELECT value FROM settings WHERE key='verify_branding'")
+        row = await cur.fetchone()
+        try:
+            value = json.loads(row["value"]) if row else {}
+            return value if isinstance(value, dict) else {}
+        except (TypeError, ValueError):
+            return {}
 
     async def start(self):
         if not self.vcfg.get("enabled", False):
@@ -207,7 +236,7 @@ class VerifyPortal:
             "<div style='position:absolute;left:-9999px' aria-hidden='true'><label>Leave this blank<input name='website' tabindex='-1' autocomplete='off'></label></div>"
             "<button type='submit'>Verify</button></form>"
         )
-        return web.Response(text=_page("JARVIS Verify", body), content_type="text/html")
+        return web.Response(text=_page("JARVIS Verify", body, await self.branding()), content_type="text/html")
 
     async def begin(self, request):
         key = request.match_info["key"]
