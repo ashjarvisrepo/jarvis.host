@@ -17,6 +17,33 @@ log=logging.getLogger("jarvis")
 def money(amount,cfg):
     return f'{cfg["shop"].get("currency_symbol","₹")}{amount/100:,.2f}'
 
+def verification_panel_embed():
+    embed = discord.Embed(
+        title="🛡️ Verify to Unlock the Community",
+        description=(
+            "We verify members to help keep bots and raid accounts out and protect the private community. "
+            "Complete Discord's official authorization to receive access."
+        ),
+        colour=0x7565D9,
+    )
+    embed.add_field(
+        name="Why verify?",
+        value="Only verified members can see the community channels. This helps keep the server safe for everyone.",
+        inline=False,
+    )
+    embed.add_field(
+        name="Privacy",
+        value="We do not log or save your IP address. JARVIS never asks for your Discord password, MFA code, or session token.",
+        inline=False,
+    )
+    embed.add_field(
+        name="How it works",
+        value="Click **Verify**, check the server name on Discord, and approve if you want to join.",
+        inline=False,
+    )
+    embed.set_footer(text="JARVIS • Community Security")
+    return embed
+
 def create_bot(cfg):
     intents=discord.Intents.default()
     intents.members=True
@@ -901,8 +928,7 @@ def create_bot(cfg):
                 if int(target.get("guild_id", 0) or 0) == guild.id and bot.verify_portal.public_url():
                     panel_url = f"{bot.verify_portal.public_url()}/verify/{key}"
                     break
-            embed = discord.Embed(title="🛡️ Verify to Join", description="Verification helps keep bots out and protects this community.", colour=0x7565D9)
-            embed.add_field(name="Privacy", value="We don't log or save your IP. JARVIS never asks for your password or MFA code.", inline=False)
+            embed = verification_panel_embed()
             embed.set_footer(text="JARVIS • Community Security")
             if panel_url:
                 view = discord.ui.View(timeout=None)
@@ -933,8 +959,7 @@ def create_bot(cfg):
         if not isinstance(channel, discord.TextChannel):
             return await i.response.send_message("Choose a text channel.", ephemeral=True)
         url = f"{bot.verify_portal.public_url()}/verify/{destination}"
-        embed = discord.Embed(title="🛡️ Verify to Join", description="Verification helps keep bots out and protects this community.", colour=0x7565D9)
-        embed.add_field(name="Privacy", value="We don't log or save your IP. JARVIS never asks for your password or MFA code.", inline=False)
+        embed = verification_panel_embed()
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Verify", style=discord.ButtonStyle.link, url=url))
         await channel.send(embed=embed, view=view)
@@ -1448,7 +1473,10 @@ def create_bot(cfg):
             return await ctx.reply("That verification destination is not configured.", mention_author=False)
         if not bot.verify_portal.vcfg.get("enabled") or not bot.verify_portal.public_url():
             return await ctx.reply("Verification is not configured yet. Ask the owner to configure the HTTPS OAuth portal.", mention_author=False)
-        await ctx.reply(f"**JARVIS VERIFY** — [Continue with Discord]({bot.verify_portal.public_url()}/verify/{destination})\nYou'll see the destination and authorize joining on Discord.", mention_author=False)
+        url = f"{bot.verify_portal.public_url()}/verify/{destination}"
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(label="Verify", style=discord.ButtonStyle.link, url=url))
+        await ctx.send(embed=verification_panel_embed(), view=view)
 
     @bot.command(name="verifypanel")
     async def prefix_verifypanel(ctx, destination: str = "main"):
@@ -1461,8 +1489,7 @@ def create_bot(cfg):
         if destination not in targets or not public_url:
             return await ctx.reply("That verification destination or public URL is not configured. Set it in `config/settings.yaml`, then restart the bot.", mention_author=False)
         url = f"{public_url}/verify/{destination}"
-        embed = discord.Embed(title="🛡️ Verify to Join", description="Verification helps keep bots out and protects this community.", colour=0x7565D9)
-        embed.add_field(name="Privacy", value="We don't log or save your IP. JARVIS never asks for your password or MFA code.", inline=False)
+        embed = verification_panel_embed()
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Verify", style=discord.ButtonStyle.link, url=url))
         await ctx.send(embed=embed, view=view)
