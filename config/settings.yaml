@@ -1,0 +1,71 @@
+discord:
+  token_env: DISCORD_TOKEN
+  command_prefix: "$"
+  guild_id: 0
+  owner_ids: []
+  admin_role_ids: []
+  staff_role_ids: []
+shop:
+  name: JARVIS SHOP
+  currency: INR
+  currency_symbol: "₹"
+  order_prefix: "JX"
+  support_category_id: 0
+  ticket_log_channel_id: 0
+  order_log_channel_id: 0
+  payment_instructions: "Pay using the method shown by staff, then submit your transaction reference."
+  manual_payment_enabled: true
+sellauth:
+  enabled: true
+  store_url: ""
+  store_url_env: SELLAUTH_STORE_URL
+  panel_logo_url: ""
+  panel_banner_url: ""
+  shop_id: 0
+  webhook_secret_env: SELLAUTH_WEBHOOK_SECRET
+  webhook_host: "0.0.0.0"
+  webhook_port: 8788
+  webhook_path: "/sellauth/notifications"
+security:
+  command_cooldown_seconds: 3
+  max_cart_quantity: 20
+  require_staff_approval_for_manual_payment: true
+ai:
+  enabled: true
+  provider: ollama
+  base_url: "http://127.0.0.1:11434"
+  model: "qwen2.5:3b"
+  timeout_seconds: 20
+database:
+  path: "data/jarvis_shop.sqlite3"
+logging:
+  level: INFO
+  file: "logs/jarvis.log"
+
+# JARVIS VERIFY - requires a publicly reachable HTTPS callback in production.
+# Register redirect_uri exactly in Discord Developer Portal -> OAuth2 -> Redirects.
+verify:
+  enabled: true
+  client_id_env: DISCORD_OAUTH_CLIENT_ID
+  client_secret_env: DISCORD_OAUTH_CLIENT_SECRET
+  recovery_key_env: JARVIS_RECOVERY_KEY
+  pull_api_key_env: JARVIS_PULL_API_KEY
+  # Set JARVIS_PUBLIC_BASE_URL and JARVIS_REDIRECT_URI in Railway after
+  # generating the Railway public domain. Never reuse an expired Quick Tunnel.
+  public_base_url: ""
+  redirect_uri: ""
+  host: "127.0.0.1"
+  port: 8787
+  min_account_age_days: 0
+  max_attempts_per_5m: 12
+  targets:
+    - key: main
+      name: "Your Main Community"
+      guild_id: 0
+      role_id: 0
+      invite_url: ""
+
+# Pull dashboard is served only on the computer running this bot.
+local_dashboard:
+  enabled: true
+  port: 8790

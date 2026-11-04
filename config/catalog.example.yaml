@@ -1,0 +1,5 @@
+# Example products can be added with $addproduct after startup.
+# Never store passwords, account credentials, or license keys in this file.
+categories:
+  - Digital Products
+  - Services
