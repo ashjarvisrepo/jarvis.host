@@ -1102,7 +1102,11 @@ def create_bot(cfg):
     @bot.command(name="help", aliases=["commands", "menu", "help_shop"])
     async def prefix_help(ctx):
         embeds = command_list_embeds(bot, prefixes, ctx.author, cfg)
-        await ctx.reply(embeds=embeds, mention_author=False)
+        for index, embed in enumerate(embeds):
+            if index == 0:
+                await ctx.reply(embed=embed, mention_author=False)
+            else:
+                await ctx.send(embed=embed)
 
     @bot.command(name="serversnapshot")
     async def prefix_serversnapshot(ctx, action: str = "list", *, name: str = ""):
