@@ -1892,20 +1892,53 @@ def create_bot(cfg):
         await ctx.reply(f"Stock for product `#{product_id}` is now **{stock}**.", mention_author=False)
 
     @bot.event
+    async def on_command_completion(ctx):
+        """Give a quiet, visible success signal after every prefix command."""
+        try:
+            await ctx.message.add_reaction("✅")
+        except (discord.Forbidden, discord.HTTPException):
+            # The command result still appears; this only means Discord blocked
+            # the optional acknowledgement reaction in that channel.
+            pass
+
+    @bot.event
     async def on_command_error(ctx, error):
-        if isinstance(error, commands.CommandNotFound): return
+        if isinstance(error, commands.CommandNotFound):
+            try:
+                await ctx.reply(f"I couldn't find that command. Run `{ctx.prefix}help` to see the command list.", mention_author=False)
+                await ctx.message.add_reaction("❓")
+            except discord.HTTPException:
+                pass
+            return
         if isinstance(error, commands.MissingRequiredArgument):
-            return await ctx.reply(f"Missing argument: `{error.param.name}`. Use `{ctx.prefix}help` for examples.", mention_author=False)
+            message = await ctx.reply(f"I need `{error.param.name}` to run that. Use `{ctx.prefix}help` to see the syntax.", mention_author=False)
+            try: await ctx.message.add_reaction("❌")
+            except discord.HTTPException: pass
+            return message
         if isinstance(error, commands.BadArgument):
-            return await ctx.reply(f"I couldn't understand that argument. Use `{ctx.prefix}help` for examples.", mention_author=False)
+            message = await ctx.reply(f"I couldn't understand that argument. Use `{ctx.prefix}help` to see the syntax.", mention_author=False)
+            try: await ctx.message.add_reaction("❌")
+            except discord.HTTPException: pass
+            return message
         if isinstance(error, commands.CommandOnCooldown):
-            return await ctx.reply(f"Please wait {error.retry_after:.1f}s before using that again.", mention_author=False)
+            message = await ctx.reply(f"That command is still cooling down. Try again in {error.retry_after:.1f}s.", mention_author=False)
+            try: await ctx.message.add_reaction("⏳")
+            except discord.HTTPException: pass
+            return message
         if isinstance(error, commands.MissingPermissions):
-            return await ctx.reply("You don't have permission to use that command.", mention_author=False)
+            message = await ctx.reply("I couldn't run that because you don't have permission to use it.", mention_author=False)
+            try: await ctx.message.add_reaction("❌")
+            except discord.HTTPException: pass
+            return message
         if isinstance(error, commands.CheckFailure):
-            return await ctx.reply("You don't have permission to use that command. Run `$help` to see all command groups and required access.", mention_author=False)
+            message = await ctx.reply(f"I couldn't run that because you don't have permission. Run `{ctx.prefix}help` to see which commands you can use.", mention_author=False)
+            try: await ctx.message.add_reaction("❌")
+            except discord.HTTPException: pass
+            return message
         log.exception("Prefix command failed", exc_info=error)
-        try: await ctx.reply("That command failed. Check the bot log or ask an admin.", mention_author=False)
+        try:
+            await ctx.reply("I tried to run that, but hit an error. Check the bot log or ask an admin for help.", mention_author=False)
+            await ctx.message.add_reaction("❌")
         except discord.HTTPException: pass
 
     # Carry every legacy application-command feature into the prefix interface,
