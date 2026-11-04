@@ -52,8 +52,8 @@ verify:
   pull_api_key_env: JARVIS_PULL_API_KEY
   # Set JARVIS_PUBLIC_BASE_URL and JARVIS_REDIRECT_URI in Railway after
   # generating the Railway public domain. Never reuse an expired Quick Tunnel.
-  public_base_url: ""
-  redirect_uri: ""
+  public_base_url: "https://jarvishost-production.up.railway.app"
+  redirect_uri: "https://jarvishost-production.up.railway.app/oauth/callback"
   host: "127.0.0.1"
   port: 8787
   min_account_age_days: 0
