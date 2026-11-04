@@ -120,7 +120,7 @@ def command_pages(bot, viewer=None, cfg=None, namespace=None):
         if not allowed:
             continue
         desc = (PREFIX_DESCRIPTIONS.get(command.name) or command.help or command.short_doc or "No description provided.").replace("\n", " ")
-        desc = desc.split("Example:", 1)[0].strip().rstrip(". ")
+        desc = desc.split("Example:", 1)[0].strip().rstrip(". ")[:180]
         if command.name == "pull":
             desc = "Start and control recovery pulls for members who opted in."
         elif command.name == "serversnapshot":
@@ -149,11 +149,16 @@ def command_list_embeds(bot, prefixes, viewer, cfg):
         if namespace not in visible_lanes:
             continue
         grouped = command_pages(bot, viewer=viewer, cfg=cfg, namespace=namespace)
-        embed = discord.Embed(
-            title=f"JARVIS Command List · {title}",
-            description="Commands you can use, grouped by category. Syntax appears only when a command needs correction.",
-            colour=0x7565D9,
-        )
+        embed_title = f"JARVIS Command List · {title}"
+        embed_description = "Commands grouped by category. Syntax is shown only when a command needs correction."
+        def new_embed(continued=False):
+            result = discord.Embed(title=embed_title,
+                description=embed_description if not continued else "Command list continued.", colour=0x7565D9)
+            result.set_footer(text=f"Access: {access_label}")
+            return result
+        embed = new_embed()
+        used = len(embed_title) + len(embed_description) + len(access_label)
+        fields = 0
         for category, entries in grouped.items():
             lines = [f"**{name}** — {description}" if description else f"**{name}**" for name, description, _access in entries]
             chunks, current = [], ""
@@ -164,9 +169,17 @@ def command_list_embeds(bot, prefixes, viewer, cfg):
             if current:
                 chunks.append(current)
             for index, chunk in enumerate(chunks):
-                embed.add_field(name=category if index == 0 else f"{category} · more", value=chunk, inline=True)
-        embed.set_footer(text=f"Access: {access_label}")
-        embeds.append(embed)
+                field_name = category if index == 0 else f"{category} · more"
+                if fields >= 25 or used + len(field_name) + len(chunk) > 5400:
+                    embeds.append(embed)
+                    embed = new_embed(continued=True)
+                    used = len(embed_title) + len("Command list continued.") + len(access_label)
+                    fields = 0
+                embed.add_field(name=field_name, value=chunk, inline=True)
+                used += len(field_name) + len(chunk)
+                fields += 1
+        if fields:
+            embeds.append(embed)
     return embeds
 
 
